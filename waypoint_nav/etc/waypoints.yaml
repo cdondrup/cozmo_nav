@@ -1,0 +1,56 @@
+waypoint1:
+  position:
+    x: 1.0
+    y: 2.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  edges:
+    - "waypoint2"
+waypoint2:
+  position:
+    x: 1.0
+    y: 2.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  edges:
+    - "waypoint3"
+    - "waypoint4"
+waypoint3:
+  position:
+    x: 1.0
+    y: 2.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  edges:
+    - "waypoint4"
+waypoint4:
+  position:
+    x: 1.0
+    y: 2.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  edges:
+    - "waypoint5"
+waypoint5:
+  position:
+    x: 1.0
+    y: 2.0
+  orientation:
+    x: 0.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  edges:
+    - "waypoint1"

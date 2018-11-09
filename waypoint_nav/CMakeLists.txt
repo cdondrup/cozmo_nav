@@ -68,6 +68,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_action_files(
   FILES
   WayPointNav.action
+  TopoNav.action
 )
 
 ## Generate added messages and services with any dependencies listed here
