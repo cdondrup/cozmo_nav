@@ -4,8 +4,11 @@
 import yaml
 from collections import defaultdict, deque
 import rospy
-from actionlib import SimpleActionServer
+from actionlib import SimpleActionServer, SimpleActionClient
 from waypoint_nav.msg import TopoNavAction, TopoNavResult
+from geometry_msgs.msg import PoseStamped
+from waypoint_nav.msg import WayPointNavAction, WayPointNavGoal
+import numpy as np
 
 
 class AStarSearch(object):
@@ -13,6 +16,9 @@ class AStarSearch(object):
     def __init__(self, name):
         rospy.loginfo("Starting {}".format(name))
         self._as = SimpleActionServer(name, TopoNavAction, self.execute_cb, auto_start=False)
+        self.client = SimpleActionClient("/waypoint_nav_node", WayPointNavAction)
+        rospy.loginfo("Waiting for nav server")
+        self.client.wait_for_server()
         self.nodes = set()
         self.edges = defaultdict(list)
         self.distances = {}
@@ -25,6 +31,7 @@ class AStarSearch(object):
             for edge in info["edges"]:
                 self.add_edge(waypoint, edge, 1.0)
 
+        self.sub = rospy.Subscriber("/orb_slam/pose", PoseStamped, self.pose_cb)
         self._as.start()
         rospy.loginfo("Started {}".format(name))
 
@@ -36,9 +43,34 @@ class AStarSearch(object):
         # self.edges[to_node].append(from_node)
         self.distances[(from_node, to_node)] = distance
 
+    def pose_cb(self, msg):
+        closest = (None, None)
+        for k, v in self.waypointInfo.items():
+            dist = self.get_dist(msg, v["position"])
+            if closest[0] is None or dist < closest[0]:
+                closest = (dist, k)
+        self.closest = closest[1]
+
+    def get_dist(self, pose1, position):
+        return np.sqrt(np.power(pose1.pose.position.x-position["x"], 2)+np.power(pose1.pose.position.y-position["y"], 2))
+
     def execute_cb(self, goal):
-        path = self.shortest_path("waypoint1", goal.waypoint)
+        path = self.shortest_path(self.closest, goal.waypoint)[1]
         print path
+        for p in path:
+            rospy.loginfo("Going to waypoint: {}".format(p))
+            target = PoseStamped()
+            target.header.stamp = rospy.Time.now()
+            target.header.frame_id = "map"
+            target.pose.position.x = self.waypointInfo[p]["position"]["x"]
+            target.pose.position.y = self.waypointInfo[p]["position"]["y"]
+            target.pose.orientation.x = self.waypointInfo[p]["orientation"]["x"]
+            target.pose.orientation.y = self.waypointInfo[p]["orientation"]["y"]
+            target.pose.orientation.z = self.waypointInfo[p]["orientation"]["z"]
+            target.pose.orientation.w = self.waypointInfo[p]["orientation"]["w"]
+            self.client.send_goal_and_wait(
+                WayPointNavGoal(target)
+            ) 
         self._as.set_succeeded(TopoNavResult())
 
     def dijkstra(self, initial):
