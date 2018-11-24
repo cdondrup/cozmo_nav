@@ -1,0 +1,8 @@
+<launch>
+  <node pkg="ORB_SLAM2" type="Mono" name="Mono" args="$(find ORB_SLAM2)/../../../Vocabulary/ORBvoc.bin $(find ORB_SLAM2)/../../Monocular/Hazel.yaml /cozmo_camera/image 1"/>
+  <node pkg="waypoint_nav" type="waypoint_nav_node.py" name="waypoint_nav_node"/>
+  <node pkg="waypoint_nav" type="a_star_search.py" name="topo_nav_node">
+    <param name="waypoint_yaml" type="string" value="$(find waypoint_nav)/etc/waypoints.yaml"/>
+  </node>
+  <node pkg="waypoint_nav" type="transform_publisher.py" name="cozmo_tf"/>
+</launch>

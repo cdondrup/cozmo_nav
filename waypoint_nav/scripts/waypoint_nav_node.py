@@ -14,6 +14,7 @@ class Server(object):
         rospy.loginfo("Starting '{test}'.".format(test=name))
         self._as = SimpleActionServer(name, WayPointNavAction, auto_start=False)
         self._as.register_goal_callback(self.execute_cb)
+        self._as.register_preempt_callback(self.preempt_cb)
         self.listener = tf.TransformListener()
         self.pub = rospy.Publisher("/cmd_vel", Twist, queue_size=10)
         self.sub = None
@@ -25,6 +26,13 @@ class Server(object):
         print self.goal
         self.sub = rospy.Subscriber("/orb_slam/pose", PoseStamped, self.pose_cb)
 
+    def preempt_cb(self, *args):
+        self.sub.unregister()
+        self.sub = None
+        t = Twist()
+        self.pub.publish(t)
+        self._as.set_preempted(WayPointNavResult())
+
     def pose_cb(self, msg):
         dist = self.get_dist(self.goal.goal, msg)
         t = Twist()
@@ -33,7 +41,7 @@ class Server(object):
         print "Dist", dist
         theta = self.get_theta(new_goal.pose)
         print "Theta", theta
-        if dist < 0.05:
+        if dist < 0.02:
             self._as.set_succeeded(WayPointNavResult())
             self.sub.unregister()
             self.sub = None

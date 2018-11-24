@@ -16,6 +16,7 @@ class AStarSearch(object):
     def __init__(self, name):
         rospy.loginfo("Starting {}".format(name))
         self._as = SimpleActionServer(name, TopoNavAction, self.execute_cb, auto_start=False)
+        self._as.register_preempt_callback(self.preempt_cb)
         self.client = SimpleActionClient("/waypoint_nav_node", WayPointNavAction)
         rospy.loginfo("Waiting for nav server")
         self.client.wait_for_server()
@@ -30,10 +31,15 @@ class AStarSearch(object):
             self.add_node(waypoint)
             for edge in info["edges"]:
                 self.add_edge(waypoint, edge, 1.0)
+            self.waypointInfo[waypoint]["position"]["x"] *= 0.555
+            self.waypointInfo[waypoint]["position"]["y"] *= 0.555
 
         self.sub = rospy.Subscriber("/orb_slam/pose", PoseStamped, self.pose_cb)
         self._as.start()
         rospy.loginfo("Started {}".format(name))
+
+    def preempt_cb(self, *args):
+        self.client.cancel_all_goals()
 
     def add_node(self, value):
         self.nodes.add(value)
@@ -58,20 +64,24 @@ class AStarSearch(object):
         path = self.shortest_path(self.closest, goal.waypoint)[1]
         print path
         for p in path:
-            rospy.loginfo("Going to waypoint: {}".format(p))
-            target = PoseStamped()
-            target.header.stamp = rospy.Time.now()
-            target.header.frame_id = "map"
-            target.pose.position.x = self.waypointInfo[p]["position"]["x"]
-            target.pose.position.y = self.waypointInfo[p]["position"]["y"]
-            target.pose.orientation.x = self.waypointInfo[p]["orientation"]["x"]
-            target.pose.orientation.y = self.waypointInfo[p]["orientation"]["y"]
-            target.pose.orientation.z = self.waypointInfo[p]["orientation"]["z"]
-            target.pose.orientation.w = self.waypointInfo[p]["orientation"]["w"]
-            self.client.send_goal_and_wait(
-                WayPointNavGoal(target)
-            ) 
-        self._as.set_succeeded(TopoNavResult())
+            if not self._as.is_preempt_requested():
+                rospy.loginfo("Going to waypoint: {}".format(p))
+                target = PoseStamped()
+                target.header.stamp = rospy.Time.now()
+                target.header.frame_id = "map"
+                target.pose.position.x = self.waypointInfo[p]["position"]["x"]
+                target.pose.position.y = self.waypointInfo[p]["position"]["y"]
+                target.pose.orientation.x = self.waypointInfo[p]["orientation"]["x"]
+                target.pose.orientation.y = self.waypointInfo[p]["orientation"]["y"]
+                target.pose.orientation.z = self.waypointInfo[p]["orientation"]["z"]
+                target.pose.orientation.w = self.waypointInfo[p]["orientation"]["w"]
+                self.client.send_goal_and_wait(
+                    WayPointNavGoal(target)
+                ) 
+        if not self._as.is_preempt_requested():
+            self._as.set_succeeded(TopoNavResult())
+        else:
+            self._as.set_preempted()
 
     def dijkstra(self, initial):
         visited = {initial: 0}
