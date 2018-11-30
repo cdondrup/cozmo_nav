@@ -60,6 +60,8 @@ class ParticleFilter(object):
         :param pose_sigma: The std dev of the normal distribution for the rotation in radians (default=0.2)
         :returns: A triple of lists that contain the generate x, y coordinates and the angles theta
         """
+
+        # Generating a 1D normal distribution for each value with a given sigma and sampling n particles from it
         x = np.random.normal(x, pose_sigma, n)
         y = np.random.normal(y, pose_sigma, n)
         t = np.random.normal(a, rot_sigma, n)
@@ -73,6 +75,8 @@ class ParticleFilter(object):
         :param da: The change in rotation since the last time step
         :param dt: The length of the interval over which this change in position happened
         """
+
+        # Normalising the given deltas for x, y, and a to meters and radians per second
         factor = 1./dt
         self.dx = dx * factor
         self.dy = dy * factor
@@ -85,6 +89,9 @@ class ParticleFilter(object):
         :param dt: The time since the last update
         :returns: A triple of lists that contain the generate x, y coordinates and the angles theta
         """
+
+        # Assuming a constant velocity, we just multiply the last observed speeds by the time 
+        # increment given to update the particles
         self.particles_x += (self.dx * dt)
         self.particles_y += (self.dy * dt)
         self.particles_t += (self.da * dt)
@@ -100,10 +107,14 @@ class ParticleFilter(object):
         :param pose_sigma: The std dev of the normal distribution for the rotation in radians (default=0.2)
         :returns: The updated list of weights.
         """
+
+        # The Normal Probability Density Function is used to calculate weights for each particle based on
+        # the observed values for x, y, and angle t
         xw = norm.pdf(self.particles_x, x, pose_sigma)
         yw = norm.pdf(self.particles_y, y, pose_sigma)
         tw = norm.pdf(self.particles_t, t, rot_sigma)
 
+        #Summing and normalising the weights
         self.weights = xw + yw + tw
         self.weights /= np.sum(self.weights)
 
@@ -112,10 +123,23 @@ class ParticleFilter(object):
     def resample(self, pose_sigma=.1, rot_sigma=.2, starvation_factor=0.2):
         """Resamples the current particles based on the weights calculated during the last observation.
 
+        If the starvation factor is > 0, not all particles will be resampled based on weights but a percentage
+        will be randomly sampled
+
+        :param pose_sigma: The std dev of the normal distribution for the x, y coordinates (default=0.1)
+        :param pose_sigma: The std dev of the normal distribution for the rotation in radians (default=0.2)
+        :param starvation_factor: The percentage of particles that should be sampled randomly instead of based on their weights (default=0.2)
+        :returns: A triple of lists that contain the generate x, y coordinates and the angles theta
         """
+        # Num particles to be sampled based on weight
         n = int(np.round(self.num_particles*(1.-starvation_factor)))
+        # Creating indices for new particles based on weights
         new_particles = np.random.choice(range(self.num_particles), replace=True, size=n, p=self.weights)
+
+        # Sampling random particle according to starvation factor
         x, y, t = self.random_sample(np.mean(self.particles_x), np.mean(self.particles_y), np.mean(self.particles_t), self.num_particles-n, pose_sigma, rot_sigma)
+
+        # Updating particles with new sample
         self.particles_x = np.concatenate([self.particles_x[new_particles], x])
         self.particles_y = np.concatenate([self.particles_y[new_particles], y])
         self.particles_t = np.concatenate([self.particles_t[new_particles], t])
