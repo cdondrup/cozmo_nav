@@ -8,7 +8,6 @@ from mcl_pf.particle_filter import ParticleFilter
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from std_srvs.srv import Empty, EmptyResponse
 import numpy as np
-import message_filters
 import scipy.stats
 from threading import Thread, Lock
 
@@ -18,30 +17,42 @@ class MCL(object):
         rospy.loginfo("Starting '{}' ...".format(name))
         self.pf = ParticleFilter(num_particles=500)
         self.mutex = Lock()
+        self.thread = None
+        self.is_running = False
         self.subs = []
         self.prev_pose = None
         self.prev_odom = None
         self.particle_pub = rospy.Publisher("/particle_cloud", PoseArray, queue_size=1)
         self.pose_pub = rospy.Publisher("/robot_pose", PoseStamped, queue_size=1)
         self.srv = rospy.Service("~init_pose", Empty, self.init_srv_cb)
+        self.init_srv_cb(None)
         rospy.loginfo("Started '{}' ...".format(name))
 
     def init_srv_cb(self, srv):
         msg = rospy.wait_for_message("/orb_slam/pose", PoseStamped)
         self.publish_pose_arry(*self.pf.initialise(msg))
+        self.stop_pf()
+        self.start_pf()
+        return EmptyResponse()
+
+    def start_pf(self):
         if not self.subs:
             self.subs.append(rospy.Subscriber("/orb_slam/pose", PoseStamped, self.pose_cb))
             self.subs.append(rospy.Subscriber("/odom", Odometry, self.odom_cb))
+        self.is_running = True
         self.thread = Thread(target=self.spin)
         self.thread.start()
-        # self.ts = message_filters.ApproximateTimeSynchronizer(self.subs, 1, 0.1)
-        # self.ts.registerCallback(self.pose_cb)
-        return EmptyResponse()
 
-    # def test(self):
-        # while not rospy.is_shutdown():
-            # rospy.sleep(0.2)
-            # self.publish_pose_arry(*self.pf.update(0.1, 0.1, 0.3))
+    def stop_pf(self):
+        if self.subs:
+            for s in self.subs:
+                s.unregister()
+            self.subs = []
+        self.is_running = False
+        try:
+            self.thread.join()
+        except AttributeError:
+            pass
 
     def publish_pose_arry(self, px, py, pt):
         pa = PoseArray()
@@ -72,7 +83,7 @@ class MCL(object):
     def spin(self):
         r = rospy.Rate(30)
         t = rospy.Time().now().to_sec()
-        while not rospy.is_shutdown():
+        while not rospy.is_shutdown() and self.is_running:
             with self.mutex:
                 now = rospy.Time().now().to_sec()
                 x, y, a = self.pf.predict(now - t)
